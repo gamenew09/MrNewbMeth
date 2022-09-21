@@ -1,167 +1,126 @@
-local QBCore = exports['qb-core']:GetCoreObject()
+local QBCore = exports["qb-core"]:GetCoreObject()
+local IsMakingMeth = false
 
-local arewecookin = false
-local current_coord = vector3(0.0, 0.0, 0.0)
-local haschanged = nil
-local msgs_labloc = {[1] = ' Me n sis tryna knock boots in the barn my labs open but you could come by instead... well no ok the labs at: ', [2] = ' Oh shit you got my life invader message, do you think ghosts pee? Oh just set the lab up at: ', [3] = ' Mommas madder than a wet hen bud keep the place on the downlow : ', [4] = ' I think mommas outta the house but I saw them clowns again man, go chill at the spot if you want : ', [5] = '  You been stealing the condoms from my room? Go hit the spot its at : ', [6] = '  I feel like im being used, do you want to text me for my booty or what? Go to the spot and wear a gimp suit if your into it. : ',}
-local current_meth_level = 0
+AddEventHandler("QBCore:Client:UpdateObject", function ()
+	QBCore = exports["qb-core"]:GetCoreObject()
+end)
 
+function explodeLocalPlayer()
+	local pp = PlayerPedId()
+	local coords = GetEntityCoords(pp)
+	AddExplosion(coords.x, coords.y+2.0, coords.z, 32, 100000.0, true, false, 4.0)
+end
 
-local PlayerData = {}
+function startMethCook()
+	TriggerServerEvent("mnm:making:checkInitialCook")
+end
 
-function UpdateLevel()
-    local MyDrugSkill = PlayerData.metadata["drugskills"]["meth"]
+RegisterCommand("startMethCookTest", function ()
+	-- This will eventually be moved to a target on a model.
+	startMethCook()
+end)
 
-    if MyDrugSkill ~= nil then
-        if MyDrugSkill >= 1 and MyDrugSkill < 50 then
-            Config.MyLevel = 1
-        elseif MyDrugSkill >= 50 and MyDrugSkill < 100 then
-            Config.MyLevel = 2
-        elseif MyDrugSkill >= 100 and MyDrugSkill < 200 then
-            Config.MyLevel = 3
-        elseif MyDrugSkill >= 100 and MyDrugSkill < 200 then
-            Config.MyLevel = 3
-        elseif MyDrugSkill >= 200 then
-            Config.MyLevel = 4
-        end
-    else
-        Config.MyLevel = 1
+local neededAttempts = 5 -- how many succesful attempts it takes to pass
+local succeededAttempts = 0 -- changes dynamically do not edit
+
+function loadAnimDict(dict)
+    while (not HasAnimDictLoaded(dict)) do
+        RequestAnimDict(dict)
+        Wait(100)
     end
-
-    local ReturnData = {
-        lvl = Config.MyLevel,
-        rep = MyDrugSkill
-    }
-
-    return ReturnData
 end
 
+local methAnim = {
+	Dictionary = "amb@world_human_stand_fire@male@idle_a",
+	Animation = "idle_a"
+}
 
-RegisterCommand('changemethlocation', function()
-	TriggerServerEvent("mvrp_cookin:debug_command")
-end)
+local function MakingMethAnim()
+    IsMakingMeth = true
 
+	local animDict = methAnim.Dictionary
+	local anim = methAnim.Animation
 
-RegisterNetEvent('QBCore:Client:OnPlayerLoaded', function()
-    PlayerData = QBCore.Functions.GetPlayerData()
-end)
-
-RegisterNetEvent('MrNewbMethv2QB:client:UpdateReputation', function(drugskills)
-    PlayerData.metadata["drugskills"] = drugskills
-    UpdateLevel()
-end)
-
-RegisterNetEvent('QBCore:Client:OnPlayerUnload')
-AddEventHandler('QBCore:Client:OnPlayerUnload', function()
-    isLoggedIn = false
-end)
-
-
-RegisterNetEvent("mrnewbmeth:updatecoords_toclient")
-AddEventHandler("mrnewbmeth:updatecoords_toclient", function(current_srvlocation)
-	current_coord = current_srvlocation
-end)
-
---Start of debug commands
-RegisterCommand('changemethlocation', function()
-	TriggerServerEvent("mvrp_cookin:debug_command")
-end)
-
-local function UseTelescope(entity)
-	local coordVec = vector3(current_coord.x, current_coord.y, current_coord.z)
-    local pedCoords = GetEntityCoords(PlayerPedId())
-    local dstCheck = #(pedCoords - coordVec)
-    if dstCheck <= 5.0 then
-		TriggerEvent("mvrp_cookin:rolling")
-	end
+	loadAnimDict(animDict)
+    CreateThread(function()
+        while true do
+            if IsMakingMeth then
+                TaskPlayAnim(PlayerPedId(), animDict, anim, 3.0, 3.0, -1, 16, 0, 0, 0, 0)
+            else
+                StopAnimTask(PlayerPedId(), animDict, anim, 1.0)
+                break
+            end
+            Wait(1000)
+        end
+    end)
 end
 
-exports['qb-target']:AddTargetModel(`tr_prop_meth_table01a`, {
-	options = {
-		{
-			icon = "fas fa-credit-card",
-			label = "Charge Customer",
-			action = function(entity)
-				UseTelescope(entity)
-			end
-		}
-	},
-	distance = 1.5
-})
-
-function boom()
-	local playerPed = PlayerPedId()
-	local coords = GetEntityCoords(playerPed)
-    AddExplosion(coords.x, coords.y+2.0, coords.z, 32, 100000.0, true, false, 4.0)
-	arewecookin = false
-
-end
-
-RegisterNetEvent("mvrp_cookin:rolling")
-AddEventHandler("mvrp_cookin:rolling", function()
-	local fuck = 20
-	local luckynum = math.random(1, 120) 
-	local ssuperfuck = fuck + luckynum
-	local coordVec = vector3(current_coord.x, current_coord.y, current_coord.z)
-    local pedCoords = GetEntityCoords(PlayerPedId())
-    local dstCheck = #(pedCoords - coordVec)
-	if ssuperfuck > 30 and dstCheck <= 5.0 then
-		arewecookin = true
-		start_particles_bby()
-		local particle = StartParticleFxLoopedAtCoord('ent_amb_smoke_foundry', current_coord.x, current_coord.y, current_coord.z, 0.0, 0.0, 0.0, 5.0, false, false, false)
-		animation()
-		Citizen.Wait(30000)
-		StopParticleFxLooped(particle, true)
-	else
-		start_particles_bby()
-		local particle = StartParticleFxLoopedAtCoord('ent_amb_smoke_foundry', current_coord.x, current_coord.y, current_coord.z, 0.0, 0.0, 0.0, 5.0, false, false, false)
-		boom()
-		arewecookin = false
-		Citizen.Wait(60000)
-		StopParticleFxLooped(particle, true)
-	end
+RegisterNetEvent("mnm:making:waitingForProduct", function (waitTime)
+    QBCore.Functions.Progressbar("waitingforproduct", "Packing the Bag...", waitTime, false, false, {
+        disableMovement = true,
+        disableCarMovement = true,
+        disableMouse = false,
+        disableCombat = true
+    },
+    nil, nil, nil, function ()
+        IsMakingMeth = false
+        LocalPlayer.state:set("inv_busy", false, true)
+    end, function ()
+        IsMakingMeth = false
+        LocalPlayer.state:set("inv_busy", false, true)
+		explodeLocalPlayer()
+    end)
 end)
 
-function start_particles_bby()
-	RequestNamedPtfxAsset('core')
-	while not HasNamedPtfxAssetLoaded('core') do
-		Citizen.Wait(1)
-	end
-	UseParticleFxAssetNextCall('core')
+local function ShowItemBox(itemName, type)
+    TriggerEvent('inventory:client:ItemBox', QBCore.Shared.Items[itemName], type)
 end
 
-function animation()
-	exports['mythic_progbar']:Progress({
-	name = "cook_da_meth",
-	duration = 5000,
-	label = 'Processing the meth',
-	useWhileDead = false,
-	canCancel = false,
-	controlDisables = {
-			disableMovement = true,
-			disableCarMovement = true,
-			disableMouse = false,
-			disableCombat = true,
-	},
-	animation = {
-			animDict = "anim@heists@prison_heiststation@cop_reactions",
-			anim = "cop_b_idle",
-			flags = 49,
-	},
-	prop = {
-			model = "prop_paint_tray",
-			bone = 18905,
-			coords = { x = 0.10, y = 0.02, z = 0.08 },
-			rotation = { x = -150.0, y = 0.0, z = 0.0 },
-	},
-	}, function(cancelled)
-		if not cancelled then
-			TriggerServerEvent("mvrp_cookin:giveitup")
-			arewecookin = false
-		else
-			arewecookin = false
-		end
-	end)
-end
+-- If a recipe requires more than one type of item, we may want to show it removed that many items.
+local removalIndexes = {
+    [1] = "acetone",
+    [2] = "antifreeze",
+    [3] = "sudo"
+}
 
+RegisterNetEvent("mnm:making:secondStepContinue", function ()
+	-- TODO: Find a way for devs to quickly swap out qb-skillbar for something else.
+	local Skillbar = exports['qb-skillbar']:GetSkillbarObject()
+    
+    -- prevent players from accessing their inventory during a cook.
+    LocalPlayer.state:set("inv_busy", true, true)
 
+	MakingMethAnim()
+
+    Skillbar.Start({
+        duration = math.random(7500, 8500), -- how long the skillbar runs for
+        pos = math.random(10, 30), -- how far to the right the static box is
+        width = math.random(10, 20), -- how wide the static box is
+    }, function()
+        local itemNameToShowRemoval = removalIndexes[succeededAttempts + 1]
+        if itemNameToShowRemoval then
+            ShowItemBox(itemNameToShowRemoval, "remove")
+        end
+
+        if succeededAttempts + 1 >= neededAttempts then
+            print('Player succeeded enough times!')
+			succeededAttempts = 0
+			IsMakingMeth = false
+            TriggerServerEvent("mnm:making:startWaitingForProduct")
+        else
+            TriggerServerEvent("mnm:making:removeAnotherProduct")
+            Skillbar.Repeat({
+                duration = math.random(4500, 7500),
+                pos = math.random(10, 30),
+                width = math.random(5, 15),
+            })
+            succeededAttempts = succeededAttempts + 1
+        end
+    end, function()
+		succeededAttempts = 0
+		IsMakingMeth = false
+        LocalPlayer.state:set("inv_busy", false, true)
+		explodeLocalPlayer()
+        print('Player cancelled the skillbar!')
+    end)
+end)

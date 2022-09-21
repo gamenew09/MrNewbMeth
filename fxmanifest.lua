@@ -3,18 +3,18 @@ fx_version 'cerulean'
 games { 'gta5' }
 
 name 'MrNewbMeth'
-author 'MrNewb#6475'
-description 'WIP MrNewbMeth, converting to qb-core not in a live state do not use'
+author 'Toenail Clipper#4071'
+description 'Originally by MrNewb#6475. Another meth creation and selling script.'
 
-
-
+lua54 'yes'
 
 server_scripts {
-    "server/*.lua"
+    "server/sv_config.lua",
+    "server/server.lua"
 }
 
 client_scripts {
-    "client/*.lua"
+    "client/client.lua"
 }
 
 dependencies {
