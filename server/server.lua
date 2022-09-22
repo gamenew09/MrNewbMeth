@@ -62,25 +62,13 @@ function IsAlive(source)
 	return (not player.Functions.GetMetaData("inlaststand")) and (not player.Functions.GetMetaData("isdead"))
 end
 
--- TODO: Moved to shared lua file.\
--- TODO: Make values table of item name and amount.
-local removalIndexes = {
-    [1] = "acetone",
-    [2] = "antifreeze",
-    [3] = "sudo"
-}
-
-local AcetoneToMeth = 1
-local AntifreezeToMeth = 1
-local SudoToMeth = 1
-
 --[[
 	playerItemRemovalState
 		index is player source
 		value is which item in the removalIndex has been removed.
 			value >= 3 means all items have been removed.
 --]]
-local playerItemRemovalState = {}
+local playerMethCreationStepState = {}
 
 function ItemBox(source, itemName, type)
 	TriggerClientEvent('inventory:client:ItemBox', source, QBCore.Shared.Items[itemName], type)
@@ -96,13 +84,14 @@ RegisterNetEvent("mnm:making:removeAnotherProduct", function ()
 	local player = QBCore.Functions.GetPlayer(_source)
 	if not player then return end
 
-	local removalIndex = (playerItemRemovalState[_source] or 0) + 1
-	playerItemRemovalState[_source] = removalIndex
+	local removalIndex = (playerMethCreationStepState[_source] or 0) + 1
+	playerMethCreationStepState[_source] = removalIndex
 
-	local itemName = removalIndexes[removalIndex]
-	if itemName then
-		player.Functions.RemoveItem(itemName, 1)
-		ItemBox(itemName, "remove")
+	local item = Config.MethSteps[removalIndex]
+	if item then
+		if item.ItemId and item.Amount then
+			player.Functions.RemoveItem(item.ItemId, item.Amount)
+		end
 	end
 end)
 
@@ -112,15 +101,16 @@ AddEventHandler("mnm:making:startWaitingForProduct", function ()
 	-- 		 Use local variables or metadata in player?
 	local _source = source
 
-	if not playerItemRemovalState[_source] or playerItemRemovalState[_source] < #removalIndexes then
+	-- Since we call startWaitingForProduct on the last creation step, we should just check that we at least got to the step before last.
+	if not playerMethCreationStepState[_source] or playerMethCreationStepState[_source] < (#Config.MethSteps - 1) then
 		-- Exploting!!!!!
 		warn(tostring(_source) .. " is exploting! Tried to wait for product before removing items!")
 		return
 	end
 
 	-- Player has removed all items.
-	playerItemRemovalState[_source] = nil
-	local waitingForProductMiliseconds = 1000
+	playerMethCreationStepState[_source] = nil
+	local waitingForProductMiliseconds = Config.PackingTimeSeconds * 1000
 	TriggerClientEvent("mnm:making:waitingForProduct", _source, waitingForProductMiliseconds)
 
 	CreateThread(function ()
@@ -141,7 +131,7 @@ end)
 
 -- How the fuck do i get this from qb-inventory resource.
 -- Will people have to know to change this???
-local MaxPlayerInventoryWeight = 120000
+local MaxPlayerInventoryWeight = Config.MaxPlayerInventoryWeight
 
 RegisterServerEvent("mnm:making:checkInitialCook")
 AddEventHandler("mnm:making:checkInitialCook", function ()
@@ -163,7 +153,16 @@ AddEventHandler("mnm:making:checkInitialCook", function ()
 
 	-- Check if player is alive, and if they die anytime during it then cancel out of making meth.
 
-	if QBCore.Functions.HasItem(_source, "acetone", AcetoneToMeth) and QBCore.Functions.HasItem(_source, "antifreeze", AntifreezeToMeth) and QBCore.Functions.HasItem(_source, "sudo", SudoToMeth) then
+	local hasAllItems = true
+
+	for _, itemData in pairs(Config.MethSteps) do
+		if itemData.ItemId and itemData.Amount and not QBCore.Functions.HasItem(_source, itemData.ItemId, itemData.Amount) then
+			hasAllItems = false
+			break
+		end
+	end
+
+	if hasAllItems then
 		-- We have required stuff to cook. Tell client to start the skillbar.
 		-- It'll also handle showing the item boxes too.
 		NotifyPlayer(_source, "I have it! I'm making it!", "success") -- DEBUG

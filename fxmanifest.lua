@@ -9,11 +9,13 @@ description 'Originally by MrNewb#6475. Another meth creation and selling script
 lua54 'yes'
 
 server_scripts {
+    "config.lua",
     "server/sv_config.lua",
     "server/server.lua"
 }
 
 client_scripts {
+    "config.lua",
     "client/client.lua"
 }
 

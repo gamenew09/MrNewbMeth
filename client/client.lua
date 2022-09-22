@@ -30,24 +30,48 @@ function loadAnimDict(dict)
     end
 end
 
-local methAnim = {
-	Dictionary = "amb@world_human_stand_fire@male@idle_a",
-	Animation = "idle_a"
-}
+AddEventHandler('onResourceStop', function(resource)
+   if resource == GetCurrentResourceName() then
+      IsMakingMeth = false
+   end
+end)
+
+
+local currentAnim = defaultAnim
+
+local function ChangeAnimation(animTable)
+    CreateThread(function ()
+        StopAnimTask(PlayerPedId(), currentAnim.Dictionary, currentAnim.Animation, 1.0)
+        currentAnim = animTable or Config.DefaultMethCreateAnimation
+        print("changed animation to ", currentAnim.Dictionary, currentAnim.Animation)
+        TaskPlayAnim(PlayerPedId(), currentAnim.Dictionary, currentAnim.Animation, 3.0, 3.0, -1, 16, 0, 0, 0, 0)
+    end)
+end
 
 local function MakingMethAnim()
     IsMakingMeth = true
+    local defaultAnim = Config.DefaultMethCreateAnimation
 
-	local animDict = methAnim.Dictionary
-	local anim = methAnim.Animation
+    -- Load Default Meth Table Animation Dictionary
+	loadAnimDict(defaultAnim.Dictionary)
 
-	loadAnimDict(animDict)
+    -- Load any animation dictionaries that a step wants to use.
+    for _, methStep in pairs(Config.MethSteps) do
+        if methStep.Animation then
+            print("loading", methStep.Animation.Dictionary)
+	        loadAnimDict(methStep.Animation.Dictionary)
+        end
+    end
+
+    currentAnim = Config.MethSteps[1].Animation or defaultAnim
+    print("changed animation to ", currentAnim.Dictionary, currentAnim.Animation)
+
     CreateThread(function()
         while true do
             if IsMakingMeth then
-                TaskPlayAnim(PlayerPedId(), animDict, anim, 3.0, 3.0, -1, 16, 0, 0, 0, 0)
+                TaskPlayAnim(PlayerPedId(), currentAnim.Dictionary, currentAnim.Animation, 3.0, 3.0, -1, 16, 0, 0, 0, 0)
             else
-                StopAnimTask(PlayerPedId(), animDict, anim, 1.0)
+                StopAnimTask(PlayerPedId(), currentAnim.Dictionary, currentAnim.Animation, 1.0)
                 break
             end
             Wait(1000)
@@ -76,13 +100,6 @@ local function ShowItemBox(itemName, type)
     TriggerEvent('inventory:client:ItemBox', QBCore.Shared.Items[itemName], type)
 end
 
--- If a recipe requires more than one type of item, we may want to show it removed that many items.
-local removalIndexes = {
-    [1] = "acetone",
-    [2] = "antifreeze",
-    [3] = "sudo"
-}
-
 RegisterNetEvent("mnm:making:secondStepContinue", function ()
 	-- TODO: Find a way for devs to quickly swap out qb-skillbar for something else.
 	local Skillbar = exports['qb-skillbar']:GetSkillbarObject()
@@ -91,15 +108,25 @@ RegisterNetEvent("mnm:making:secondStepContinue", function ()
     LocalPlayer.state:set("inv_busy", true, true)
 
 	MakingMethAnim()
-
+    local removalIndexes = Config.MethSteps
+    
+    neededAttempts = #removalIndexes
+    
     Skillbar.Start({
         duration = math.random(7500, 8500), -- how long the skillbar runs for
         pos = math.random(10, 30), -- how far to the right the static box is
         width = math.random(10, 20), -- how wide the static box is
     }, function()
-        local itemNameToShowRemoval = removalIndexes[succeededAttempts + 1]
-        if itemNameToShowRemoval then
-            ShowItemBox(itemNameToShowRemoval, "remove")
+        local stepData = removalIndexes[succeededAttempts + 1]
+        if stepData and stepData.ItemId and stepData.Amount then
+            local itemid = stepData.ItemId
+            if Config.MatchItemBoxesToRemovalCount then
+                for i = 1, stepData.Amount do
+                    ShowItemBox(itemid, "remove")
+                end
+            else
+                ShowItemBox(itemid, "remove")
+            end
         end
 
         if succeededAttempts + 1 >= neededAttempts then
@@ -109,6 +136,10 @@ RegisterNetEvent("mnm:making:secondStepContinue", function ()
             TriggerServerEvent("mnm:making:startWaitingForProduct")
         else
             TriggerServerEvent("mnm:making:removeAnotherProduct")
+            local nextStepData = removalIndexes[succeededAttempts + 2]
+            if nextStepData then
+                ChangeAnimation(nextStepData.Animation or Config.DefaultMethCreateAnimation)
+            end
             Skillbar.Repeat({
                 duration = math.random(4500, 7500),
                 pos = math.random(10, 30),
